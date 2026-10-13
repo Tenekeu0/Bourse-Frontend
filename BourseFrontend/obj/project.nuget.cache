@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "wswGHEgbFvM=",
+  "dgSpecHash": "xRgs5tN5Ycg=",
   "success": true,
-  "projectFilePath": "C:\\Users\\tenek\\OneDrive\\Bureau\\App\\BourseApp\\BourseFrontend\\BourseFrontend.csproj",
+  "projectFilePath": "C:\\Users\\tenek\\OneDrive\\Bureau\\App\\BourseApp\\Bourse-Frontend\\BourseFrontend\\BourseFrontend.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\tenek\\.nuget\\packages\\microsoft.aspnetcore.app.internal.assets\\10.0.12\\microsoft.aspnetcore.app.internal.assets.10.0.12.nupkg.sha512"
   ],

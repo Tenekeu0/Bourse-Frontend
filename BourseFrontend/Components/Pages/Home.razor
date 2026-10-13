@@ -1,7 +1,421 @@
 ﻿@page "/"
+@using System.Globalization
+@using System.Net.Http.Json
+@using System.Text.Json
+@inject IHttpClientFactory HttpClientFactory
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Bourse Dashboard</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="dashboard-shell">
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">Bourse App</p>
+            <h1>Dashboard de portefeuille</h1>
+        </div>
+        <div class="topbar-actions">
+            <button class="refresh-button" @onclick="LoadDashboardAsync" disabled="@isLoading">
+                @(isLoading ? "Actualisation…" : "Actualiser")
+            </button>
+            <span class="pill">@dashboard?.portfolio.currency</span>
+        </div>
+    </header>
 
-Welcome to your new app.
+    @if (isLoading)
+    {
+        <div class="state-card">
+            <p>Chargement du tableau de bord…</p>
+        </div>
+    }
+    else if (dashboard is null && !string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="state-card error">
+            <h3>Impossible de charger le dashboard</h3>
+            <p>@errorMessage</p>
+        </div>
+    }
+    else if (dashboard is not null)
+    {
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="state-card error"><p>@errorMessage</p></div>
+        }
+
+        @if (dashboard.unavailableQuotes.Count > 0)
+        {
+            <div class="state-card error">
+                <h2>Cours indisponibles</h2>
+                <ul>
+                    @foreach (var quote in dashboard.unavailableQuotes)
+                    {
+                        <li>@quote.symbol (@quote.currency) : @quote.reason</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <section class="summary-grid">
+            <div class="summary-card">
+                <span>Capital initial</span>
+                <strong>@FormatMoney(dashboard.portfolio.initialCapital, dashboard.portfolio.currency)</strong>
+            </div>
+            <div class="summary-card">
+                <span>Cash disponible</span>
+                <strong>@FormatMoney(dashboard.portfolio.availableCash, dashboard.portfolio.currency)</strong>
+            </div>
+            <div class="summary-card">
+                <span>Positions</span>
+                <strong>@dashboard.portfolio.positions / @dashboard.portfolio.maxPositions</strong>
+            </div>
+            <div class="summary-card">
+                <span>Risque par position</span>
+                <strong>@FormatMoney(dashboard.portfolio.riskPerPosition, dashboard.portfolio.currency)</strong>
+            </div>
+        </section>
+
+        <section class="panel-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Actions à acheter</h2>
+                    <span>@dashboard.buyable.Count</span>
+                </div>
+
+                @if (dashboard.buyable.Count == 0)
+                {
+                    <p class="empty-state">Aucune action éligible pour l’achat.</p>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Symbole</th>
+                                    <th>Prix</th>
+                                    <th>Qty</th>
+                                    <th>Notional</th>
+                                    <th>Source / état</th>
+                                    <th>Horodatage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in dashboard.buyable)
+                                {
+                                    <tr>
+                                        <td>@item.symbol</td>
+                                        <td>@FormatMoney(item.price, item.currency)</td>
+                                        <td>@item.quantity</td>
+                                        <td>@FormatMoney(item.notional, item.currency)</td>
+                                        <td>@item.source <small>@(item.isRealTime ? "Temps réel" : item.isDelayed ? "Différé" : "Indisponible")</small></td>
+                                        <td>@item.timestampUtc.ToLocalTime().ToString("g")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Actions à vendre</h2>
+                    <span>@dashboard.sellable.Count</span>
+                </div>
+
+                @if (dashboard.sellable.Count == 0)
+                {
+                    <p class="empty-state">Aucune position ouverte à vendre.</p>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Symbole</th>
+                                    <th>Prix</th>
+                                    <th>Qty</th>
+                                    <th>Notional</th>
+                                    <th>Source / état</th>
+                                    <th>Horodatage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in dashboard.sellable)
+                                {
+                                    <tr>
+                                        <td>@item.symbol</td>
+                                        <td>@FormatMoney(item.price, item.currency)</td>
+                                        <td>@item.quantity</td>
+                                        <td>@FormatMoney(item.notional, item.currency)</td>
+                                        <td>@item.source <small>@(item.isRealTime ? "Temps réel" : item.isDelayed ? "Différé" : "Indisponible")</small></td>
+                                        <td>@item.timestampUtc.ToLocalTime().ToString("g")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+<style>
+    .dashboard-shell {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 1rem 2rem;
+        color: #0f172a;
+    }
+
+    .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 1rem;
+    }
+
+    .eyebrow {
+        margin: 0 0 0.25rem;
+        color: #2563eb;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: clamp(2rem, 3vw, 2.8rem);
+    }
+
+    .pill {
+        background: #dbeafe;
+        color: #1d4ed8;
+        border-radius: 999px;
+        padding: 0.5rem 0.85rem;
+        font-weight: 700;
+        font-size: 0.8rem;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-card, .panel, .state-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .summary-card {
+        padding: 1rem 1.1rem;
+    }
+
+    .summary-card span {
+        display: block;
+        color: #64748b;
+        margin-bottom: 0.45rem;
+        font-size: 0.82rem;
+    }
+
+    .summary-card strong {
+        font-size: 1.5rem;
+    }
+
+    .panel-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+        gap: 1rem;
+    }
+
+    .topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .refresh-button {
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #fff;
+        color: #0f172a;
+        padding: 0.45rem 0.7rem;
+        font-weight: 600;
+    }
+
+    .refresh-button:disabled {
+        opacity: 0.65;
+    }
+
+    .panel {
+        padding: 1rem;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .panel-header h2 {
+        margin: 0;
+        font-size: 1.15rem;
+    }
+
+    .panel-header span {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border-radius: 999px;
+        padding: 0.3rem 0.65rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table-wrap {
+        overflow-x: auto;
+    }
+
+    th, td {
+        text-align: left;
+        padding: 0.7rem 0.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    th {
+        color: #64748b;
+        font-weight: 700;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .state-card {
+        padding: 1.25rem;
+    }
+
+    .error {
+        border-color: #fecaca;
+        background: #fff1f2;
+        color: #9f1239;
+    }
+
+    .empty-state {
+        margin: 0;
+        color: #64748b;
+    }
+</style>
+
+@code {
+    private DashboardResponse? dashboard;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+
+    protected override Task OnInitializedAsync() => LoadDashboardAsync();
+
+    private async Task LoadDashboardAsync()
+    {
+        isLoading = true;
+        dashboard = null;
+        errorMessage = string.Empty;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("BourseApi");
+            using var response = await client.GetAsync("api/dashboard");
+            if (response.IsSuccessStatusCode)
+            {
+                dashboard = await response.Content.ReadFromJsonAsync<DashboardResponse>();
+                if (dashboard is null)
+                {
+                    errorMessage = "Le backend a retourné un tableau de bord vide.";
+                }
+            }
+            else
+            {
+                errorMessage = $"Le backend a répondu avec le statut HTTP {(int)response.StatusCode}.";
+                try
+                {
+                    var apiError = await response.Content.ReadFromJsonAsync<ApiErrorResponse>();
+                    errorMessage = apiError?.detail ?? apiError?.error ?? errorMessage;
+                }
+                catch (JsonException)
+                {
+                }
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"Le backend n'est pas accessible. Détail: {ex.Message}";
+        }
+        catch (JsonException)
+        {
+            errorMessage = "Le backend a retourné une réponse JSON invalide.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string FormatMoney(decimal amount, string currency) =>
+        $"{amount.ToString("N2", CultureInfo.GetCultureInfo("en-CA"))} {currency}";
+
+    public class DashboardResponse
+    {
+        public PortfolioSummary portfolio { get; set; } = new();
+        public List<DashboardItem> buyable { get; set; } = new();
+        public List<DashboardItem> sellable { get; set; } = new();
+        public List<UnavailableQuote> unavailableQuotes { get; set; } = new();
+    }
+
+    public class PortfolioSummary
+    {
+        public string currency { get; set; } = string.Empty;
+        public decimal initialCapital { get; set; }
+        public decimal availableCash { get; set; }
+        public int positions { get; set; }
+        public int maxPositions { get; set; }
+        public decimal riskPerPosition { get; set; }
+        public decimal maxExposurePerAsset { get; set; }
+        public decimal dailyLossLimit { get; set; }
+    }
+
+    public class DashboardItem
+    {
+        public string symbol { get; set; } = string.Empty;
+        public decimal price { get; set; }
+        public decimal quantity { get; set; }
+        public decimal notional { get; set; }
+        public string currency { get; set; } = string.Empty;
+        public string source { get; set; } = string.Empty;
+        public bool isDelayed { get; set; }
+        public bool isRealTime { get; set; }
+        public DateTimeOffset timestampUtc { get; set; }
+    }
+
+    public class ApiErrorResponse
+    {
+        public string? detail { get; set; }
+        public string? error { get; set; }
+    }
+
+    public class UnavailableQuote
+    {
+        public string symbol { get; set; } = string.Empty;
+        public string currency { get; set; } = string.Empty;
+        public string reason { get; set; } = string.Empty;
+    }
+}

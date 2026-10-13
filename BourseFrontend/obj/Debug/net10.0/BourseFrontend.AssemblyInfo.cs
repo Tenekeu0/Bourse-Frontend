@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BourseFrontend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d1bb3e70f5b4722bbdb71ed30f52fabacc1d4a89")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3f9446ae0d228c730448a871db31a4b882b3278c")]
 [assembly: System.Reflection.AssemblyProductAttribute("BourseFrontend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BourseFrontend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
